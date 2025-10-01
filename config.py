@@ -3,7 +3,7 @@ import threading
 from db import DB_PATH
 from functools import wraps
 
-token = 'ваш токен полученный от @BotFAther'
+token = '8253664996:AAFgMQXOARA3XKxSYonWKIB08Feq2DTLd1Q'
 
 class User:
     def __init__(self, user_id: int, first_name: str, username: str, scores: int = 0):

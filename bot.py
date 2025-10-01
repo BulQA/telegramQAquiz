@@ -1,10 +1,14 @@
 import telebot
 import threading
 import random
-from telebot.types import PollAnswer
+from telebot.types import PollAnswer, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from config import token, auto_delete, delete_user_command, with_quiz_winners
-from questions import questions  # словарь вопросов
-from db import init_db, add_user_if_new, add_point, get_user_scores, save_correct_answer, get_top_users, get_user_rank
+from questions import questions
+from db import (
+    init_db, add_user_if_new, add_point,
+    save_answer, get_user_stats, 
+    get_all_user_stats, reset_user_stats
+)
 
 bot = telebot.TeleBot(token)
 
@@ -31,7 +35,7 @@ def start_command(message):
 
 @bot.message_handler(commands=['fun'])
 @delete_user_command(bot, delay=5)
-@auto_delete(bot, delay=15)
+@auto_delete(bot, delay=10)
 def fun_command(message):
     return bot.send_message(
         chat_id=message.chat.id,
@@ -44,10 +48,55 @@ def fun_command(message):
 
 @bot.message_handler(commands=['my_score'])
 @delete_user_command(bot, delay=5)
-@auto_delete(bot, delay=15)    # <-- теперь передаём bot сюда
+@auto_delete(bot, delay=15)
 def my_score_command(message):
-    scores = get_user_scores(message.from_user.id)
-    return bot.send_message(message.chat.id, f"У вас {scores} очков 🏆")
+    user_id = message.from_user.id
+    all_stats = get_all_user_stats()
+    user_stat = next((stat for stat in all_stats if stat[0] == user_id), None)
+
+    if not user_stat:
+        return bot.send_message(message.chat.id, "Вы ещё не участвовали в квизах 😅")
+    else:
+        uid, uname, fname, scores, total_games, correct, wrong, ratio = user_stat
+        name = f"@{uname}" if uname else fname
+        msg_text = (f"🏆 Очки: {scores}\n"
+                    f"🎮 Всего игр: {total_games}\n"
+                    f"✅ Правильных: {correct}\n"
+                    f"❌ Неправильных: {wrong}\n"
+                    f"📊 % П/Н: {ratio}%")
+        return bot.send_message(message.chat.id, msg_text)
+
+
+@bot.message_handler(commands=['rs'])
+@delete_user_command(bot, delay=5)
+@auto_delete(bot, delay=5)
+def reset_stats_command(message):
+    chat_id = message.chat.id
+
+    # создаем клавиатуру "Да / Нет"
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup.add(KeyboardButton("Да"), KeyboardButton("Нет"))
+
+    bot.send_message(
+        chat_id,
+        "⚠ Вы уверены, что хотите обнулить вашу статистику?",
+        reply_markup=markup
+    )
+
+    # переводим в режим ожидания ответа
+    bot.register_next_step_handler(message, process_reset_confirmation)
+
+
+def process_reset_confirmation(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    answer = message.text.strip().lower()
+
+    if answer == "да":
+        reset_user_stats(user_id)
+        bot.send_message(chat_id, "✅ Ваша статистика была обнулена!", reply_markup=ReplyKeyboardRemove())
+    else:
+        bot.send_message(chat_id, "❌ Обнуление статистики отменено.", reply_markup=ReplyKeyboardRemove())
 
 
 @bot.message_handler(commands=['quiz'])
@@ -128,31 +177,63 @@ def handle_poll_answer(poll_answer: PollAnswer):
     correct_index = correct_answers_dict.get(poll_answer.poll_id)
     correct = 1 if selected_option == correct_index else 0
 
-    # Сохраняем ответ в таблицу quiz_answers
+    # Сохраняем ответ в таблицу quiz_answers (и правильный, и неправильный)
+    save_answer(poll_answer.poll_id, user_id, correct)
+
+    # Начисляем очки только за правильный ответ
     if correct:
-        from db import save_correct_answer
-        save_correct_answer(poll_answer.poll_id, user_id)
         add_point(user_id)
 
 
+# ---------------------------
+# Функция вывода топ игроков
+# ---------------------------
+
 @bot.message_handler(commands=['top'])
 @delete_user_command(bot, delay=5)
-@auto_delete(bot, delay=30)
+@auto_delete(bot, delay=10)
 def show_top(message):
-    top_users = get_top_users(7)
-    user_rank, user_score = get_user_rank(message.from_user.id)
+    user_id = message.from_user.id
+    headers = ['Место', 'Юз', 'Очки', 'Игры', '% П/Н']
 
-    lines = ["🏆 Топ-7 игроков:"]
-    for i, (uname, fname, score) in enumerate(top_users, start=1):
-        name = f"@{uname}" if uname else fname
-        lines.append(f"{i}. {name} — {score}")
+    all_users = get_user_stats()
 
-    # если пользователь не в топ-7, добавляем 8-ю строку с его местом
-    if user_rank and user_rank > 7:
-        lines.append("—" * 20)
-        lines.append(f"{user_rank}. Вы — {user_score}")
+    table_data = []
+    user_row = None
 
-    return bot.send_message(message.chat.id, "\n".join(lines))
+    for rank, username, first_name, scores, total_games, correct, wrong, percent in all_users:
+        display_name = f"@{username}" if username else first_name or "—"
+        row = [rank, display_name, scores, total_games, f"{percent}%"]
+
+        if rank <= 7:
+            table_data.append(row)
+
+        if rank > 7 and (username == message.from_user.username or user_id == message.from_user.id):
+            user_row = row
+
+    # автоширина колонок
+    col_widths = [
+        max(len(str(x)) for x in [header] + [row[i] for row in table_data] + ([user_row[i]] if user_row else [])) + 2
+        for i, header in enumerate(headers)
+    ]
+
+    def format_row(row):
+        return "|" + "|".join(f"{str(row[i]):^{col_widths[i]}}" for i in range(len(row))) + "|"
+
+    sep_line = "+" + "+".join("-" * w for w in col_widths) + "+"
+    lines = [format_row(headers), sep_line] + [format_row(row) for row in table_data]
+
+    if user_row:
+        lines.append(sep_line)
+        lines.append(format_row(user_row))
+
+    return bot.send_message(
+        message.chat.id,
+        f"<pre>{chr(10).join(lines)}</pre>",
+        parse_mode='HTML'
+    )
+
+
 
 
 # ---------------------------
