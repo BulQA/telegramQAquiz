@@ -15,27 +15,33 @@ class User:
 
 def auto_delete(bot, delay: int = 15):
     """
-    Декоратор, удаляющий сообщение через delay секунд.
-    Использование: @auto_delete(bot, delay=15)
+    Декоратор, удаляющий сообщение(я), отправленное ботом через delay секунд.
+    Поддерживает: Message, list[Message], tuple[Message,...], None.
     """
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            msg = func(*args, **kwargs)
-            if msg:
-                def safe_delete(m):
-                    try:
-                        bot.delete_message(m.chat.id, m.message_id)
-                    except Exception as e:
-                        # Можно оставить print для отладки, либо просто pass
-                        # print("Ошибка при удалении сообщения:", e)
-                        pass
+            result = func(*args, **kwargs)
 
-                threading.Timer(delay, safe_delete, args=(msg,)).start()
-            return msg
+            def schedule_delete(msg):
+                try:
+                    bot.delete_message(msg.chat.id, msg.message_id)
+                except Exception:
+                    pass  # чтобы не падало, если сообщение уже удалено
+
+            if result is None:
+                return result
+
+            if isinstance(result, list) or isinstance(result, tuple):
+                for msg in result:
+                    if msg:
+                        threading.Timer(delay, schedule_delete, args=(msg,)).start()
+            else:
+                threading.Timer(delay, schedule_delete, args=(result,)).start()
+
+            return result
         return wrapper
     return decorator
-
 
 
 def delete_user_command(bot, delay: int = 5):
@@ -53,6 +59,46 @@ def delete_user_command(bot, delay: int = 5):
             ).start()
             # продолжаем обычную работу хэндлера
             return func(message, *args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def auto_delete_replies(bot, delay: int = 10):
+    """
+    Декоратор для удаления всех сообщений бота,
+    отправленных через bot.send_message внутри функции.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            sent_messages = []
+
+            # Подмена метода send_message на обертку
+            original_send_message = bot.send_message
+
+            def wrapped_send_message(*s_args, **s_kwargs):
+                msg = original_send_message(*s_args, **s_kwargs)
+                sent_messages.append(msg)
+                return msg
+
+            bot.send_message = wrapped_send_message
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                # Возвращаем оригинальный метод
+                bot.send_message = original_send_message
+
+            # Планируем удаление всех сообщений
+            def schedule_delete(msg):
+                try:
+                    bot.delete_message(msg.chat.id, msg.message_id)
+                except Exception:
+                    pass
+
+            for msg in sent_messages:
+                threading.Timer(delay, schedule_delete, args=(msg,)).start()
+
+            return result
         return wrapper
     return decorator
 

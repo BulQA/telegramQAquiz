@@ -2,7 +2,7 @@ import telebot
 import threading
 import random
 from telebot.types import PollAnswer, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from config import token, auto_delete, delete_user_command, with_quiz_winners
+from config import token, auto_delete, delete_user_command, with_quiz_winners, auto_delete_replies
 from questions import questions
 from db import (
     init_db, add_user_if_new, add_point,
@@ -69,11 +69,10 @@ def my_score_command(message):
 
 @bot.message_handler(commands=['rs'])
 @delete_user_command(bot, delay=5)
-@auto_delete(bot, delay=5)
+@auto_delete_replies(bot, delay=15)  # все сообщения внутри будут удалены
 def reset_stats_command(message):
     chat_id = message.chat.id
 
-    # создаем клавиатуру "Да / Нет"
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     markup.add(KeyboardButton("Да"), KeyboardButton("Нет"))
 
@@ -83,10 +82,10 @@ def reset_stats_command(message):
         reply_markup=markup
     )
 
-    # переводим в режим ожидания ответа
     bot.register_next_step_handler(message, process_reset_confirmation)
 
 
+@auto_delete_replies(bot, delay=15)
 def process_reset_confirmation(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
@@ -97,6 +96,7 @@ def process_reset_confirmation(message):
         bot.send_message(chat_id, "✅ Ваша статистика была обнулена!", reply_markup=ReplyKeyboardRemove())
     else:
         bot.send_message(chat_id, "❌ Обнуление статистики отменено.", reply_markup=ReplyKeyboardRemove())
+
 
 
 @bot.message_handler(commands=['quiz'])
@@ -205,10 +205,10 @@ def show_top(message):
         display_name = f"@{username}" if username else first_name or "—"
         row = [rank, display_name, scores, total_games, f"{percent}%"]
 
-        if rank <= 7:
+        if rank <= 8:
             table_data.append(row)
 
-        if rank > 7 and (username == message.from_user.username or user_id == message.from_user.id):
+        if rank >= 8 and (username == message.from_user.username or user_id == message.from_user.id):
             user_row = row
 
     # автоширина колонок
