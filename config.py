@@ -4,7 +4,7 @@ from db import DB_PATH
 from functools import wraps
 from telebot.apihelper import ApiTelegramException
 
-token = '8253664996:AAFgMQXOARA3XKxSYonWKIB08Feq2DTLd1Q'
+token = 'Токен полученный от @BotFather'
 
 banner_1 = """
 ░░█░░░█▀█░█▀▀░█▀█
