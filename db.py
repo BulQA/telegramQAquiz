@@ -106,7 +106,7 @@ def get_user_stats(limit=999999):
     """
     Возвращает список всех пользователей с их очками, количеством игр
     и процентом побед.
-    Формат: [(rank, username, first_name, scores, total_games, correct_answers, wrong_answers, percent_wins), ...]
+    Формат: [(rank, user_id, username, first_name, scores, total_games, correct_answers, wrong_answers, percent_wins), ...]
     """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -139,8 +139,9 @@ def get_user_stats(limit=999999):
 
     result = []
     for rank, row in enumerate(rows, start=1):
-        result.append((rank,) + row[1:])  
-    
+        # теперь добавляем user_id в результат
+        result.append((rank,) + row)  
+
     return result
 
 

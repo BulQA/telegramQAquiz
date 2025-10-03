@@ -28,7 +28,6 @@ def start_command(message):
         text=(
             f"Привет, {message.from_user.first_name}! 🤗\n\n"
             "Для продолжения используйте: /fun"
-
         )
     )
 
@@ -196,19 +195,25 @@ def show_top(message):
     user_id = message.from_user.id
     headers = ['Место', 'Юз', 'Очки', 'Игры', '% П/Н']
 
+    # удаляем сообщение с командой /top
+    try:
+        bot.delete_message(message.chat.id, message.message_id)
+    except:
+        pass  # чтобы не падало, если бот не может удалить (например, нет прав)
+
     all_users = get_user_stats()
 
     table_data = []
     user_row = None
 
-    for rank, username, first_name, scores, total_games, correct, wrong, percent in all_users:
+    for rank, uid, username, first_name, scores, total_games, correct, wrong, percent in all_users:
         display_name = f"@{username}" if username else first_name or "—"
         row = [rank, display_name, scores, total_games, f"{percent}%"]
 
-        if rank <= 8:
+        if rank <= 7:
             table_data.append(row)
 
-        if rank >= 8 and (username == message.from_user.username or user_id == message.from_user.id):
+        if uid == user_id and rank > 7:
             user_row = row
 
     # автоширина колонок
