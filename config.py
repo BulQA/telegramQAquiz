@@ -6,26 +6,6 @@ from telebot.apihelper import ApiTelegramException
 
 token = '8253664996:AAFgMQXOARA3XKxSYonWKIB08Feq2DTLd1Q'
 
-banner_1 = """
-░░█░░░█▀█░█▀▀░█▀█
-▀▀█▀▀░█▀▄░█▀░░█▀▀
-░░█░░░▀░▀░▀▀▀░▀░░
-／ﾌﾌ 　　　　　　　ム｀ヽ
-/ ノ) 　　　　　　　　）　ヽ
-/ ｜　　( ͡° ͜ʖ ͡°）ノ⌒（ゝ._,ノ
-/　ﾉ⌒7⌒ヽーく　 ＼　／
-丶＿ ノ ｡　　 ノ､　｡|/
-　　 `ヽ `ー-'_人`ーﾉ
-　　　 丶 ￣ _人'彡ﾉ
-"""
-class User:
-    def __init__(self, user_id: int, first_name: str, username: str, scores: int = 0):
-        self.user_id = user_id
-        self.first_name = first_name
-        self.username = username
-        self.scores = scores
-
-
 def safe_delete(bot, chat_id, message_id):
     """Удаляет сообщение с безопасной обработкой исключений"""
     try:

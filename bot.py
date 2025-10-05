@@ -1,9 +1,19 @@
 import telebot
 import threading
 import random
-from telebot.types import PollAnswer, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from config import token, auto_delete, delete_user_command, with_quiz_winners, auto_delete_replies
 from questions import questions
+from banners import (
+    winners, commands, fail_answer, 
+    personal_scores
+)
+from telebot.types import (
+    PollAnswer, ReplyKeyboardMarkup,
+    KeyboardButton, ReplyKeyboardRemove
+) 
+from config import (
+    token, auto_delete, auto_delete_replies,
+    delete_user_command, with_quiz_winners
+)
 from db import (
     init_db, add_user_if_new, add_point,
     save_answer, get_user_stats, 
@@ -26,13 +36,15 @@ def start_command(message):
     return bot.send_message(
         chat_id=message.chat.id,
         text=(
+            f"<pre>{commands}</pre>\n"
             f"Привет, {message.from_user.first_name}! 🤗\n\n"
-            "Для продолжения используйте: /fun"
-        )
+            "Для получения инфо используйте: /about"
+        ),
+        parse_mode="HTML"
     )
 
 
-@bot.message_handler(commands=['fun'])
+@bot.message_handler(commands=['about'])
 @delete_user_command(bot, delay=5)
 @auto_delete(bot, delay=10)
 def fun_command(message):
@@ -40,7 +52,9 @@ def fun_command(message):
         chat_id=message.chat.id,
         text=(
             f"Чтобы начать игру используйте команду: /quiz\n\n"
-             "Для просмотра очков: /my_score"
+             "Для просмотра очков:             /my_score\n\n"
+             "Таблица лидеров :            /top\n\n"
+             "Обнулить статистику :   /rs"
         )
     )
 
@@ -137,7 +151,6 @@ def create_quiz(message):
     delete_quiz,
     args=(message.chat.id, poll_message.message_id, poll_message.poll.id)).start()
 
-
 @with_quiz_winners
 @auto_delete(bot, delay=15)
 def delete_quiz(chat_id: int, message_id: int, poll_id: str, winners_text: str = None):
@@ -146,14 +159,19 @@ def delete_quiz(chat_id: int, message_id: int, poll_id: str, winners_text: str =
         bot.delete_message(chat_id, message_id)
 
         if winners_text:
-            text = (f"🎉 Победители: {winners_text}!\n\n"
-                    "Для продолжения игры используйте : /quiz"
-                    )
+            text = (
+                f"<pre>{winners}</pre>\n"
+                f"🎉 Победители:\n{winners_text}\n\n"
+                "Для продолжения игры используйте: /quiz"
+            )
         else:
-            text = ("Никто не ответил правильно 😅.\n\n"
-                    "Для продолжения игры используйте : /quiz"
-                    )
-        return bot.send_message(chat_id, text)
+            text = (
+                f"<pre>{fail_answer}</pre>\n"
+                "Никто не ответил правильно 😅.\n\n"
+                "Для продолжения игры используйте: /quiz"
+            )
+
+        return bot.send_message(chat_id, text, parse_mode="HTML")
 
     except Exception as e:
         print("Ошибка при удалении квиза:", e)
