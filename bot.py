@@ -2,7 +2,7 @@ import os
 import random
 import telebot
 import threading
-from banners import *  # Wildcard import for compatibility; assumes personal_stats_1 and _2 are defined in banners.py
+from banners import *
 from dotenv import load_dotenv
 from questions import questions
 
@@ -237,14 +237,15 @@ def handle_closed_poll(poll: Poll):
 @auto_delete(bot, delay=10)
 def show_top(message):
     user_id = message.from_user.id
-    headers = ['Место', 'Юз', 'Очки', 'Игры', '% П/Н']  # Оригинальные названия столбцов
+    headers = ['№', 'Имя', 'Очки', 'Игр', 'П/Н%']
 
-    # удаляем сообщение с командой /top
+    # Удаляем командное сообщение
     try:
         bot.delete_message(message.chat.id, message.message_id)
     except:
-        pass  # чтобы не падало, если бот не может удалить (например, нет прав)
+        pass
 
+    # Получаем список всех пользователей с рейтингом
     all_users = get_user_stats()
 
     table_data = []
@@ -252,31 +253,38 @@ def show_top(message):
 
     for rank, uid, username, first_name, scores, total_games, correct, wrong, percent in all_users:
         display_name = f"@{username}" if username else first_name or "—"
-        display_name = display_name[:12] + '...' if len(display_name) > 12 else display_name  # Обрезка для компактности
-        row = [rank, display_name, scores, total_games, f"{percent}%"]
+        row = [str(rank), display_name, str(scores), str(total_games), f"{percent}%"]
 
+        # Добавляем топ-7
         if rank <= 7:
             table_data.append(row)
 
+        # Если пользователь вне топа
         if uid == user_id and rank > 7:
             user_row = row
 
-    # Автоматическая размерность колонок (адаптировано для чатов: min(max(len), 15) для ограничения ширины)
+    # Добавляем пользователя вне топа с разделителем
+    if user_row:
+        table_data.append(['—'] * len(headers))
+        table_data.append(user_row)
+
+    # Вычисляем динамическую ширину колонок
     col_widths = [
-        min(max(len(str(x)) for x in [header] + [row[i] for row in table_data] + ([user_row[i]] if user_row else [])), 15) + 2
-        for i, header in enumerate(headers)
+        max(len(str(headers[i])), max(len(str(row[i])) for row in table_data))
+        for i in range(len(headers))
     ]
 
     def format_row(row):
-        return "|" + "|".join(f"{str(row[i]):^{col_widths[i]}}" for i in range(len(row))) + "|"
+        # Выравнивание по левому краю с разделителем |
+        return "|" + "|".join(f" {str(row[i]):<{col_widths[i]}} " for i in range(len(row))) + "|"
 
-    sep_line = "+" + "+".join("-" * w for w in col_widths) + "+"
-    lines = [format_row(headers), sep_line] + [format_row(row) for row in table_data]
+    # Разделительная линия для всей таблицы
+    sep_line = "+" + "+".join("-" * (w + 2) for w in col_widths) + "+"
 
-    if user_row:
-        lines.append(sep_line)
-        lines.append(format_row(user_row))
+    lines = [sep_line, format_row(headers), sep_line] + \
+            [format_row(row) for row in table_data] + [sep_line]
 
+    # Отправка сообщения с тегом <pre> для фиксированного шрифта
     return bot.send_message(
         message.chat.id,
         f"<pre>{chr(10).join(lines)}</pre>",
