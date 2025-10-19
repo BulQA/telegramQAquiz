@@ -52,7 +52,6 @@ def start_command(message):
     return bot.send_message(chat_id=message.chat.id, text=text)
 
 
-
 @bot.message_handler(commands=['my_score'])
 @delete_user_command(bot, delay=5)
 @auto_delete(bot, delay=15)
@@ -89,7 +88,6 @@ def my_score_command(message):
     return bot.send_message(message.chat.id, banner_with_stats)
 
 
-
 @bot.message_handler(commands=['rs'])
 @delete_user_command(bot, delay=5)
 @auto_delete_replies(bot, delay=15)  # все сообщения внутри будут удалены
@@ -119,7 +117,6 @@ def process_reset_confirmation(message):
         bot.send_message(chat_id, "✅ Ваша статистика была обнулена!", reply_markup=ReplyKeyboardRemove())
     else:
         bot.send_message(chat_id, "❌ Обнуление статистики отменено.", reply_markup=ReplyKeyboardRemove())
-
 
 
 @bot.message_handler(commands=['quiz'])
@@ -160,6 +157,7 @@ def create_quiz(message):
     20.0,
     delete_quiz,
     args=(message.chat.id, poll_message.message_id, poll_message.poll.id)).start()
+
 
 # ---------------------------
 # Обработчик ответа пользователя на опрос
